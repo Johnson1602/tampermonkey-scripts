@@ -1,13 +1,16 @@
 // ==UserScript==
 // @name         X.com Analytics Nav Item
-// @namespace    http://tampermonkey.net/
-// @version      1.0
+// @namespace    https://github.com/Johnson1602/tampermonkey-scripts
+// @version      0.0.1
 // @description  Adds an Analytics nav item below Premium in the X.com sidebar
-// @author       You
+// @author       Weiyi Xu
+// @license      MIT
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=x.com
 // @grant        none
+// @downloadURL  https://github.com/Johnson1602/tampermonkey-scripts/blob/main/add-analytics-nav-item.js
+// @updateURL    https://github.com/Johnson1602/tampermonkey-scripts/blob/main/add-analytics-nav-item.js
 // ==/UserScript==
 
 ;(function () {
@@ -69,8 +72,12 @@
     }
 
     // Find the Premium nav item, fallback to Home
-    const premiumItem = document.querySelector('[data-testid="premium-hub-tab"]')
-    const homeItem = document.querySelector('[data-testid="AppTabBar_Home_Link"]')
+    const premiumItem = document.querySelector(
+      '[data-testid="premium-hub-tab"]'
+    )
+    const homeItem = document.querySelector(
+      '[data-testid="AppTabBar_Home_Link"]'
+    )
     const referenceItem = premiumItem || homeItem
 
     if (!referenceItem) {
