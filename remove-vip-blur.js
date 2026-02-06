@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.8
+// @version      0.0.10
 // @description  Removes VIP paywall blur and overlay, adds copy button for magnet links
 // @author       Weiyi Xu
 // @license      MIT
@@ -197,7 +197,60 @@
 
     document.body.dataset.shortcutBound = '1'
 
+    const getSearchInput = () =>
+      document.querySelector('input[placeholder*="关键词"], input[placeholder*="搜索"]')
+
+    const isSearchOpen = () => !!(document.querySelector('.search-overlay') || getSearchInput())
+
+    const closeSearch = () => {
+      const closeBtn =
+        document.querySelector('.search-overlay .search-close') ||
+        document.querySelector('.search-overlay .arco-icon-close')?.closest('.search-close')
+
+      if (closeBtn instanceof HTMLElement) {
+        closeBtn.click()
+        return true
+      }
+
+      return false
+    }
+
     document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase()
+      const isCmdK = e.metaKey && !e.ctrlKey && !e.altKey && key === 'k'
+      const isEsc = key === 'escape'
+
+      if (isEsc && isSearchOpen()) {
+        e.preventDefault()
+        closeSearch()
+        return
+      }
+
+      if (isCmdK) {
+        e.preventDefault()
+
+        if (isSearchOpen()) {
+          closeSearch()
+          return
+        }
+
+        const searchTrigger =
+          document.querySelector('.search-trigger') ||
+          document.querySelector('.arco-icon-search')?.closest('.search-trigger')
+        if (searchTrigger instanceof HTMLElement) {
+          searchTrigger.click()
+
+          setTimeout(() => {
+            const openedInput = getSearchInput()
+            if (openedInput instanceof HTMLElement) {
+              openedInput.focus()
+            }
+          }, 0)
+        }
+
+        return
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
         return
       }
@@ -213,7 +266,6 @@
         return
       }
 
-      const key = e.key
       if (!/^[1-5]$/.test(key)) {
         return
       }
