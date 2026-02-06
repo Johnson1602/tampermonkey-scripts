@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.2
+// @version      0.0.3
 // @description  Removes VIP paywall blur and overlay, adds copy button for magnet links
 // @author       Weiyi Xu
 // @license      MIT
@@ -74,9 +74,72 @@
     })
   }
 
+  function setupDoubanRatingLinks() {
+    if (!document.body || document.body.dataset.doubanRatingBound === '1') {
+      return
+    }
+
+    document.body.dataset.doubanRatingBound = '1'
+
+    document.addEventListener(
+      'click',
+      (e) => {
+        const target = e.target
+        if (!(target instanceof Element)) {
+          return
+        }
+
+        const ratingTag = target.closest('.rating-tag')
+        if (!ratingTag || !ratingTag.querySelector('.rating-logo.douban')) {
+          return
+        }
+
+        const cardLink = ratingTag.closest('a[href]')
+        if (!cardLink) {
+          return
+        }
+
+        const href = cardLink.getAttribute('href') || ''
+        const idMatch = href.match(/\/mv\/(\d+)/)
+        if (!idMatch) {
+          return
+        }
+
+        e.preventDefault()
+        e.stopPropagation()
+
+        const doubanUrl = `https://movie.douban.com/subject/${idMatch[1]}`
+        window.open(doubanUrl, '_blank', 'noopener')
+      },
+      true
+    )
+  }
+
+  function markDoubanTagsClickable() {
+    const ratingTags = document.querySelectorAll('.rating-tag')
+
+    ratingTags.forEach((ratingTag) => {
+      if (!ratingTag.querySelector('.rating-logo.douban')) {
+        return
+      }
+
+      if (ratingTag.dataset.doubanLinkReady === '1') {
+        return
+      }
+
+      ratingTag.dataset.doubanLinkReady = '1'
+      ratingTag.style.cursor = 'pointer'
+      if (!ratingTag.getAttribute('title')) {
+        ratingTag.setAttribute('title', '打开豆瓣页面')
+      }
+    })
+  }
+
   function runAll() {
     removeVipRestrictions()
     addCopyButtons()
+    setupDoubanRatingLinks()
+    markDoubanTagsClickable()
   }
 
   // Use MutationObserver to handle dynamically loaded content
