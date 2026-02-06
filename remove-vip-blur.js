@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.6
+// @version      0.0.8
 // @description  Removes VIP paywall blur and overlay, adds copy button for magnet links
 // @author       Weiyi Xu
 // @license      MIT
@@ -190,8 +190,59 @@
     document.head.appendChild(style)
   }
 
+  function setupKeyboardShortcuts() {
+    if (!document.body || document.body.dataset.shortcutBound === '1') {
+      return
+    }
+
+    document.body.dataset.shortcutBound = '1'
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+        return
+      }
+
+      const target = e.target
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
+      const key = e.key
+      if (!/^[1-5]$/.test(key)) {
+        return
+      }
+
+      e.preventDefault()
+
+      if (window.location.pathname === '/') {
+        const navLink = Array.from(document.querySelectorAll('a[href]')).find((link) => {
+          try {
+            const url = new URL(link.href, window.location.href)
+            return url.pathname === '/' && url.searchParams.get('sc') === key
+          } catch {
+            return false
+          }
+        })
+
+        if (navLink) {
+          navLink.click()
+          return
+        }
+      }
+
+      window.location.assign(`https://web5.mukaku.com/?sc=${key}`)
+    })
+  }
+
   function runAll() {
     disableVideoCardHoverLift()
+    setupKeyboardShortcuts()
     removeVipRestrictions()
     addCopyButtons()
     ensureDoubanUnknownTags()
