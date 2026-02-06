@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.4
+// @version      0.0.5
 // @description  Removes VIP paywall blur and overlay, adds copy button for magnet links
 // @author       Weiyi Xu
 // @license      MIT
@@ -166,7 +166,19 @@
     })
   }
 
+  function disableVideoCardHoverLift() {
+    if (!document.head || document.getElementById('tm-disable-video-card-hover-lift')) {
+      return
+    }
+
+    const style = document.createElement('style')
+    style.id = 'tm-disable-video-card-hover-lift'
+    style.textContent = '.video-card:hover { transform: none !important; }'
+    document.head.appendChild(style)
+  }
+
   function runAll() {
+    disableVideoCardHoverLift()
     removeVipRestrictions()
     addCopyButtons()
     ensureDoubanUnknownTags()
