@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.3
+// @version      0.0.4
 // @description  Removes VIP paywall blur and overlay, adds copy button for magnet links
 // @author       Weiyi Xu
 // @license      MIT
@@ -135,9 +135,41 @@
     })
   }
 
+  function ensureDoubanUnknownTags() {
+    const videoCards = document.querySelectorAll('a.video-card[href]')
+
+    videoCards.forEach((card) => {
+      const hasDoubanTag = card.querySelector('.rating-tag .rating-logo.douban')
+      if (hasDoubanTag) {
+        return
+      }
+
+      const cardMetaBottom = card.querySelector('.card-meta-bottom')
+      if (!cardMetaBottom) {
+        return
+      }
+
+      let ratingsBottom = cardMetaBottom.querySelector('.card-ratings-bottom')
+      if (!ratingsBottom) {
+        ratingsBottom = document.createElement('div')
+        ratingsBottom.className = 'card-ratings-bottom'
+        cardMetaBottom.appendChild(ratingsBottom)
+      }
+
+      const wrapper = document.createElement('span')
+      const tag = document.createElement('span')
+      tag.className = 'arco-tag arco-tag-size-small arco-tag-green arco-tag-checked rating-tag'
+      tag.innerHTML = '<span class="rating-logo douban">豆</span> unknown'
+      wrapper.appendChild(tag)
+
+      ratingsBottom.prepend(wrapper)
+    })
+  }
+
   function runAll() {
     removeVipRestrictions()
     addCopyButtons()
+    ensureDoubanUnknownTags()
     setupDoubanRatingLinks()
     markDoubanTagsClickable()
   }
