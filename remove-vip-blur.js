@@ -21,10 +21,13 @@
   const ARCHIVE_STORE_VERSION = 1
   const ARCHIVE_STYLE_ID = 'tm-video-archive-style'
   const ARCHIVE_VISIBILITY_TOGGLE_ID = 'tm-archive-visibility-toggle'
+  const VIDEO_NAME_COPY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy-icon lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+  const VIDEO_NAME_COPY_SUCCESS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>`
   const ARCHIVE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg>`
   const ARCHIVE_RESTORE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h2"></path><path d="M20 8v11a2 2 0 0 1-2 2h-2"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v9"></path></svg>`
   let hideArchivedVideos = true
   let archiveStoreCache = null
+  const copyNameSuccessTimers = new WeakMap()
 
   function removeVipRestrictions() {
     // Remove the VIP gate overlay
@@ -168,7 +171,7 @@
       const tag = document.createElement('span')
       tag.className =
         'arco-tag arco-tag-size-small arco-tag-green arco-tag-checked rating-tag'
-      tag.innerHTML = '<span class="rating-logo douban">豆</span> unknown'
+      tag.innerHTML = '<span class="rating-logo douban">豆</span>'
       wrapper.appendChild(tag)
 
       ratingsBottom.prepend(wrapper)
@@ -322,10 +325,12 @@
         display: inline-flex;
         align-items: center;
         margin-right: 8px;
+        gap: 6px;
         flex: 0 0 auto;
         vertical-align: middle;
       }
-      .tm-archive-btn {
+      .tm-archive-btn,
+      .tm-copy-name-btn {
         appearance: none;
         border: 1px solid transparent;
         background: transparent;
@@ -347,17 +352,20 @@
           color 0.16s ease,
           box-shadow 0.16s ease;
       }
-      .tm-archive-btn svg {
+      .tm-archive-btn svg,
+      .tm-copy-name-btn svg {
         width: 12px;
         height: 12px;
         display: block;
         pointer-events: none;
       }
-      .tm-archive-btn--ghost {
+      .tm-archive-btn--ghost,
+      .tm-copy-name-btn--ghost {
         border-color: rgba(148, 163, 184, 0.42);
         background: rgba(248, 250, 252, 0.9);
       }
-      .tm-archive-btn--ghost:hover {
+      .tm-archive-btn--ghost:hover,
+      .tm-copy-name-btn--ghost:hover {
         border-color: rgba(148, 163, 184, 0.62);
         background: rgba(241, 245, 249, 0.96);
       }
@@ -366,6 +374,13 @@
         color: #065f46;
       }
       .tm-archive-btn--ghost[data-tm-archive-action="unarchive"] {
+        background: rgba(236, 253, 245, 0.92);
+      }
+      .tm-copy-name-btn[data-tm-copy-state="success"] {
+        border-color: rgba(16, 185, 129, 0.55);
+        color: #065f46;
+      }
+      .tm-copy-name-btn--ghost[data-tm-copy-state="success"] {
         background: rgba(236, 253, 245, 0.92);
       }
     `
@@ -465,7 +480,137 @@
     }
   }
 
-  function ensureArchiveButton(card) {
+  function setCopyNameButtonState(button, state, title, ariaLabel) {
+    const iconSvg =
+      state === 'success'
+        ? VIDEO_NAME_COPY_SUCCESS_SVG
+        : VIDEO_NAME_COPY_ICON_SVG
+
+    if (button.dataset.tmCopyState !== state) {
+      button.dataset.tmCopyState = state
+      button.innerHTML = iconSvg
+    } else if (!button.querySelector('svg')) {
+      button.innerHTML = iconSvg
+    }
+
+    if (button.title !== title) {
+      button.title = title
+    }
+
+    if (button.getAttribute('aria-label') !== ariaLabel) {
+      button.setAttribute('aria-label', ariaLabel)
+    }
+  }
+
+  function getVideoNameFromCard(card) {
+    if (!(card instanceof Element)) {
+      return ''
+    }
+
+    const titleNode = card.querySelector('.card-title')
+    const titleAttr = titleNode?.getAttribute('title') || ''
+    if (titleAttr.trim()) {
+      return titleAttr.trim()
+    }
+
+    const titleText = titleNode?.textContent || ''
+    if (titleText.trim()) {
+      return titleText.trim()
+    }
+
+    const posterAlt =
+      card.querySelector('.card-poster img')?.getAttribute('alt') || ''
+    return posterAlt.trim()
+  }
+
+  function fallbackCopyText(text) {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '-1000px'
+    textarea.style.left = '-1000px'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+
+    let copied = false
+    try {
+      copied = document.execCommand('copy')
+    } catch {
+      copied = false
+    }
+
+    textarea.remove()
+    return copied
+  }
+
+  function copyTextToClipboard(text) {
+    if (
+      navigator.clipboard &&
+      typeof navigator.clipboard.writeText === 'function'
+    ) {
+      return navigator.clipboard
+        .writeText(text)
+        .then(() => true)
+        .catch(() => fallbackCopyText(text))
+    }
+
+    return Promise.resolve(fallbackCopyText(text))
+  }
+
+  function syncCopyNameButtonVisualState(button) {
+    if (!(button instanceof HTMLButtonElement)) {
+      return
+    }
+
+    const successUntil = Number(button.dataset.tmCopySuccessUntil || 0)
+    const isSuccess = Number.isFinite(successUntil) && successUntil > Date.now()
+
+    if (isSuccess) {
+      setCopyNameButtonState(
+        button,
+        'success',
+        'Copied video name',
+        'Video name copied',
+      )
+    } else {
+      delete button.dataset.tmCopySuccessUntil
+      setCopyNameButtonState(
+        button,
+        'idle',
+        'Copy video name',
+        'Copy video name',
+      )
+    }
+  }
+
+  function markCopyNameSuccess(button) {
+    if (!(button instanceof HTMLButtonElement)) {
+      return
+    }
+
+    const until = Date.now() + 2000
+    button.dataset.tmCopySuccessUntil = String(until)
+    syncCopyNameButtonVisualState(button)
+
+    const prevTimer = copyNameSuccessTimers.get(button)
+    if (prevTimer) {
+      window.clearTimeout(prevTimer)
+    }
+
+    const timer = window.setTimeout(() => {
+      const latestUntil = Number(button.dataset.tmCopySuccessUntil || 0)
+      if (!Number.isFinite(latestUntil) || latestUntil <= Date.now()) {
+        delete button.dataset.tmCopySuccessUntil
+      }
+      syncCopyNameButtonVisualState(button)
+      copyNameSuccessTimers.delete(button)
+    }, 2050)
+    copyNameSuccessTimers.set(button, timer)
+  }
+
+  function ensureArchiveButtons(card) {
     const cardMetaBottom = card.querySelector('.card-meta-bottom')
     if (!cardMetaBottom) {
       return null
@@ -505,7 +650,7 @@
     })
 
     const danglingButtons = Array.from(
-      card.querySelectorAll('button.tm-archive-btn'),
+      card.querySelectorAll('button.tm-archive-btn, button.tm-copy-name-btn'),
     )
     danglingButtons.forEach((button) => {
       if (button.closest('.tm-archive-actions') !== actions) {
@@ -513,36 +658,68 @@
       }
     })
 
-    let button = actions.querySelector(
+    let archiveButton = actions.querySelector(
       'button.tm-archive-btn[data-tm-archive-variant="ghost"]',
     )
-    if (!button) {
-      button =
+    if (!archiveButton) {
+      archiveButton =
         actions.querySelector('button.tm-archive-btn') ||
         document.createElement('button')
-      if (!button.parentNode) {
-        button.type = 'button'
-        actions.appendChild(button)
+      if (!archiveButton.parentNode) {
+        archiveButton.type = 'button'
+        actions.appendChild(archiveButton)
       }
     }
 
-    button.className = 'tm-archive-btn tm-archive-btn--ghost'
-    button.type = 'button'
-    button.dataset.tmArchiveBtn = '1'
-    button.dataset.tmArchiveVariant = 'ghost'
+    archiveButton.className = 'tm-archive-btn tm-archive-btn--ghost'
+    archiveButton.type = 'button'
+    archiveButton.dataset.tmArchiveBtn = '1'
+    archiveButton.dataset.tmArchiveVariant = 'ghost'
 
-    const extras = Array.from(actions.querySelectorAll('button.tm-archive-btn'))
-    extras.forEach((extraButton) => {
-      if (extraButton !== button) {
+    let copyButton = actions.querySelector(
+      'button.tm-copy-name-btn[data-tm-copy-variant="ghost"]',
+    )
+    if (!copyButton) {
+      copyButton =
+        actions.querySelector('button.tm-copy-name-btn') ||
+        document.createElement('button')
+      if (!copyButton.parentNode) {
+        copyButton.type = 'button'
+        actions.appendChild(copyButton)
+      }
+    }
+
+    copyButton.className = 'tm-copy-name-btn tm-copy-name-btn--ghost'
+    copyButton.type = 'button'
+    copyButton.dataset.tmCopyBtn = '1'
+    copyButton.dataset.tmCopyVariant = 'ghost'
+
+    const archiveButtons = Array.from(
+      actions.querySelectorAll('button.tm-archive-btn'),
+    )
+    archiveButtons.forEach((extraButton) => {
+      if (extraButton !== archiveButton) {
         extraButton.remove()
       }
     })
 
-    if (actions.lastElementChild !== button) {
-      actions.appendChild(button)
+    const copyButtons = Array.from(
+      actions.querySelectorAll('button.tm-copy-name-btn'),
+    )
+    copyButtons.forEach((extraButton) => {
+      if (extraButton !== copyButton) {
+        extraButton.remove()
+      }
+    })
+
+    if (archiveButton.parentNode === actions) {
+      actions.appendChild(archiveButton)
+    }
+    if (copyButton.parentNode === actions) {
+      actions.appendChild(copyButton)
     }
 
-    return button
+    return { archiveButton, copyButton }
   }
 
   function updateArchiveCardState(card) {
@@ -557,18 +734,21 @@
       hideArchivedVideos && isArchived,
     )
 
-    const button = ensureArchiveButton(card)
-    if (!button) {
+    const buttons = ensureArchiveButtons(card)
+    if (!buttons) {
       return
     }
 
-    if (button.dataset.tmVideoId !== videoId) {
-      button.dataset.tmVideoId = videoId
+    if (buttons.archiveButton.dataset.tmVideoId !== videoId) {
+      buttons.archiveButton.dataset.tmVideoId = videoId
+    }
+    if (buttons.copyButton.dataset.tmVideoId !== videoId) {
+      buttons.copyButton.dataset.tmVideoId = videoId
     }
 
     if (isArchived) {
       setArchiveButtonState(
-        button,
+        buttons.archiveButton,
         'unarchive',
         ARCHIVE_RESTORE_ICON_SVG,
         'Remove archive mark',
@@ -576,13 +756,15 @@
       )
     } else {
       setArchiveButtonState(
-        button,
+        buttons.archiveButton,
         'archive',
         ARCHIVE_ICON_SVG,
         'Archive this video',
         'Archive',
       )
     }
+
+    syncCopyNameButtonVisualState(buttons.copyButton)
   }
 
   function refreshArchiveUi() {
@@ -607,7 +789,9 @@
           return
         }
 
-        const button = target.closest('button.tm-archive-btn')
+        const button = target.closest(
+          'button.tm-archive-btn, button.tm-copy-name-btn',
+        )
         if (!button) {
           return
         }
@@ -619,6 +803,20 @@
 
         e.preventDefault()
         e.stopPropagation()
+
+        if (button.classList.contains('tm-copy-name-btn')) {
+          const videoName = getVideoNameFromCard(card)
+          if (!videoName) {
+            return
+          }
+
+          copyTextToClipboard(videoName).then((copied) => {
+            if (copied) {
+              markCopyNameSuccess(button)
+            }
+          })
+          return
+        }
 
         const videoId = button.dataset.tmVideoId || getVideoIdFromCard(card)
         if (!videoId) {
