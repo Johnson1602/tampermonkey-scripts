@@ -21,6 +21,8 @@
   const ARCHIVE_STORE_VERSION = 1
   const ARCHIVE_STYLE_ID = 'tm-video-archive-style'
   const ARCHIVE_VISIBILITY_TOGGLE_ID = 'tm-archive-visibility-toggle'
+  const ARCHIVE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg>`
+  const ARCHIVE_RESTORE_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h2"></path><path d="M20 8v11a2 2 0 0 1-2 2h-2"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v9"></path></svg>`
   let hideArchivedVideos = true
   let archiveStoreCache = null
 
@@ -265,7 +267,9 @@
   }
 
   function getPrimaryVideoGrid() {
-    const grids = Array.from(document.querySelectorAll('.video-list-section .video-grid'))
+    const grids = Array.from(
+      document.querySelectorAll('.video-list-section .video-grid'),
+    )
     return grids.find((grid) => !grid.closest('#tm-archived-section')) || null
   }
 
@@ -310,29 +314,59 @@
         border-color: rgba(16, 185, 129, 0.55);
         color: #065f46;
       }
-      .tm-archive-action-wrap {
+      .tm-archive-meta-row {
+        justify-content: space-between !important;
+        align-items: center;
+      }
+      .tm-archive-actions {
         display: inline-flex;
-        margin-left: 6px;
+        align-items: center;
+        margin-right: 8px;
+        flex: 0 0 auto;
         vertical-align: middle;
       }
       .tm-archive-btn {
         appearance: none;
-        border: 1px solid rgba(148, 163, 184, 0.55);
-        background: rgba(248, 250, 252, 0.9);
-        color: #334155;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #64748b;
         border-radius: 999px;
-        padding: 3px 10px;
-        font-size: 11px;
-        line-height: 1.2;
-        font-weight: 600;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
         cursor: pointer;
+        flex: 0 0 auto;
+        transition:
+          background-color 0.16s ease,
+          border-color 0.16s ease,
+          color 0.16s ease,
+          box-shadow 0.16s ease;
       }
-      .tm-archive-btn:hover {
-        background: rgba(241, 245, 249, 0.95);
+      .tm-archive-btn svg {
+        width: 12px;
+        height: 12px;
+        display: block;
+        pointer-events: none;
+      }
+      .tm-archive-btn--ghost {
+        border-color: rgba(148, 163, 184, 0.42);
+        background: rgba(248, 250, 252, 0.9);
+      }
+      .tm-archive-btn--ghost:hover {
+        border-color: rgba(148, 163, 184, 0.62);
+        background: rgba(241, 245, 249, 0.96);
       }
       .tm-archive-btn[data-tm-archive-action="unarchive"] {
         border-color: rgba(16, 185, 129, 0.55);
         color: #065f46;
+      }
+      .tm-archive-btn--ghost[data-tm-archive-action="unarchive"] {
+        background: rgba(236, 253, 245, 0.92);
       }
     `
 
@@ -345,7 +379,9 @@
       return loginButton
     }
 
-    const registerButton = document.querySelector('button.register-btn, .register-btn')
+    const registerButton = document.querySelector(
+      'button.register-btn, .register-btn',
+    )
     if (registerButton instanceof HTMLElement) {
       return registerButton
     }
@@ -412,30 +448,30 @@
     syncArchiveVisibilityToggleState(toggleButton)
   }
 
-  function setArchiveButtonState(button, action, text, title) {
+  function setArchiveButtonState(button, action, iconSvg, title, ariaLabel) {
     if (button.dataset.tmArchiveAction !== action) {
       button.dataset.tmArchiveAction = action
-    }
-
-    if (button.textContent !== text) {
-      button.textContent = text
+      button.innerHTML = iconSvg
+    } else if (!button.querySelector('svg')) {
+      button.innerHTML = iconSvg
     }
 
     if (button.title !== title) {
       button.title = title
     }
+
+    if (button.getAttribute('aria-label') !== ariaLabel) {
+      button.setAttribute('aria-label', ariaLabel)
+    }
   }
 
   function ensureArchiveButton(card) {
-    let button = card.querySelector('button.tm-archive-btn')
-    if (button) {
-      return button
-    }
-
     const cardMetaBottom = card.querySelector('.card-meta-bottom')
     if (!cardMetaBottom) {
       return null
     }
+
+    cardMetaBottom.classList.add('tm-archive-meta-row')
 
     let ratingsBottom = cardMetaBottom.querySelector('.card-ratings-bottom')
     if (!ratingsBottom) {
@@ -444,18 +480,67 @@
       cardMetaBottom.appendChild(ratingsBottom)
     }
 
-    let actionWrap = ratingsBottom.querySelector('.tm-archive-action-wrap')
-    if (!actionWrap) {
-      actionWrap = document.createElement('span')
-      actionWrap.className = 'tm-archive-action-wrap'
-      ratingsBottom.appendChild(actionWrap)
+    let actions = cardMetaBottom.querySelector('.tm-archive-actions')
+    if (!actions) {
+      actions = document.createElement('div')
+      actions.className = 'tm-archive-actions'
+      cardMetaBottom.prepend(actions)
+    } else if (cardMetaBottom.firstElementChild !== actions) {
+      cardMetaBottom.insertBefore(actions, cardMetaBottom.firstChild)
     }
 
-    button = document.createElement('button')
+    const legacyWraps = Array.from(
+      cardMetaBottom.querySelectorAll('.tm-archive-action-wrap'),
+    )
+    legacyWraps.forEach((legacyWrap) => {
+      const legacyButtons = Array.from(
+        legacyWrap.querySelectorAll('button.tm-archive-btn'),
+      )
+      legacyButtons.forEach((legacyButton) => {
+        if (legacyButton.parentNode !== actions) {
+          actions.appendChild(legacyButton)
+        }
+      })
+      legacyWrap.remove()
+    })
+
+    const danglingButtons = Array.from(
+      card.querySelectorAll('button.tm-archive-btn'),
+    )
+    danglingButtons.forEach((button) => {
+      if (button.closest('.tm-archive-actions') !== actions) {
+        actions.appendChild(button)
+      }
+    })
+
+    let button = actions.querySelector(
+      'button.tm-archive-btn[data-tm-archive-variant="ghost"]',
+    )
+    if (!button) {
+      button =
+        actions.querySelector('button.tm-archive-btn') ||
+        document.createElement('button')
+      if (!button.parentNode) {
+        button.type = 'button'
+        actions.appendChild(button)
+      }
+    }
+
+    button.className = 'tm-archive-btn tm-archive-btn--ghost'
     button.type = 'button'
-    button.className = 'tm-archive-btn'
     button.dataset.tmArchiveBtn = '1'
-    actionWrap.appendChild(button)
+    button.dataset.tmArchiveVariant = 'ghost'
+
+    const extras = Array.from(actions.querySelectorAll('button.tm-archive-btn'))
+    extras.forEach((extraButton) => {
+      if (extraButton !== button) {
+        extraButton.remove()
+      }
+    })
+
+    if (actions.lastElementChild !== button) {
+      actions.appendChild(button)
+    }
 
     return button
   }
@@ -467,7 +552,10 @@
     }
 
     const isArchived = isVideoPersistedArchived(videoId)
-    card.classList.toggle('tm-archived-hidden', hideArchivedVideos && isArchived)
+    card.classList.toggle(
+      'tm-archived-hidden',
+      hideArchivedVideos && isArchived,
+    )
 
     const button = ensureArchiveButton(card)
     if (!button) {
@@ -482,11 +570,18 @@
       setArchiveButtonState(
         button,
         'unarchive',
-        'Unarchive',
+        ARCHIVE_RESTORE_ICON_SVG,
         'Remove archive mark',
+        'Unarchive',
       )
     } else {
-      setArchiveButtonState(button, 'archive', 'Archive', 'Archive this video')
+      setArchiveButtonState(
+        button,
+        'archive',
+        ARCHIVE_ICON_SVG,
+        'Archive this video',
+        'Archive',
+      )
     }
   }
 
@@ -601,7 +696,29 @@
       return false
     }
 
+    const isTypingElement = (element) =>
+      element instanceof HTMLElement &&
+      (element.tagName === 'INPUT' ||
+        element.tagName === 'TEXTAREA' ||
+        element.tagName === 'SELECT' ||
+        element.isContentEditable)
+
+    const toggleArchivedVisibility = () => {
+      const toggleButton = document.getElementById(ARCHIVE_VISIBILITY_TOGGLE_ID)
+      if (toggleButton instanceof HTMLButtonElement) {
+        toggleButton.click()
+        return
+      }
+
+      hideArchivedVideos = !hideArchivedVideos
+      refreshArchiveUi()
+    }
+
     document.addEventListener('keydown', (e) => {
+      if (e.isComposing) {
+        return
+      }
+
       const key = e.key.toLowerCase()
       const isCmdK = e.metaKey && !e.ctrlKey && !e.altKey && key === 'k'
       const isEsc = key === 'escape'
@@ -644,13 +761,14 @@
       }
 
       const target = e.target
-      if (
-        target instanceof HTMLElement &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable)
-      ) {
+      const activeElement = document.activeElement
+      if (isTypingElement(target) || isTypingElement(activeElement)) {
+        return
+      }
+
+      if (key === 'a' && !e.repeat) {
+        e.preventDefault()
+        toggleArchivedVisibility()
         return
       }
 
