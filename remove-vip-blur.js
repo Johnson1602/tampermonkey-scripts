@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Remove VIP Blur
 // @namespace    https://github.com/Johnson1602/tampermonkey-scripts
-// @version      0.0.13
+// @version      0.0.14
 // @description  Removes VIP paywall blur and overlay, adds copy/archive actions for videos
 // @author       Weiyi Xu
 // @license      MIT
@@ -685,7 +685,6 @@
         document.createElement('button')
       if (!copyButton.parentNode) {
         copyButton.type = 'button'
-        actions.appendChild(copyButton)
       }
     }
 
@@ -716,8 +715,10 @@
       actions.appendChild(archiveButton)
     }
     if (copyButton.parentNode === actions) {
-      actions.appendChild(copyButton)
+      copyButton.remove()
     }
+    // Comment out the next line to temporarily hide the video-name copy button.
+    // actions.appendChild(copyButton)
 
     return { archiveButton, copyButton }
   }
